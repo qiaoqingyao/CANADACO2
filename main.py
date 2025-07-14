@@ -2,8 +2,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from statsmodels.stats.outliers_influence import variance_inflation_factor
-pd.set_option('display.float_format', lambda x: '%.3f' % x)
-plt.rcParams.update({'font.size': 10})
 from sklearn.preprocessing import MinMaxScaler
 from tslearn.utils import to_time_series_dataset
 from tslearn.clustering import KernelKMeans,TimeSeriesKMeans,silhouette_score,KShape
@@ -24,13 +22,9 @@ from sklearn.neural_network import MLPRegressor
 from sklearn.feature_selection import RFECV
 import shap
 
+pd.set_option('display.float_format', lambda x: '%.3f' % x)
+plt.rcParams.update({'font.size': 10})
 
-def vif(x):
-    vif_data = pd.DataFrame()
-    vif_data["feature"] = x.columns
-    vif_data["VIF"] = [variance_inflation_factor(x.values, i)
-                          for i in range(len(x.columns))]
-    return vif_data
 
 df = pd.read_excel(r'data\USA_Transport-Energy Consum and CO2 (2024-10-09).xls')
 df =df.set_index('Year')
@@ -45,120 +39,53 @@ x = df.drop('TCT',axis=1)
 x_ = x.iloc[:-1,:]
 y_ = y.iloc[1:]
 # plt data
-# plt.figure(figsize=(15,15))
 fig, axs = plt.subplots(5, 5, figsize=(12, 12))
 for i, ax in enumerate(axs.flatten()):
     ax.plot(df.iloc[:,i])
     ax.set_title(df.columns[i])
 plt.tight_layout()
 plt.show()
-# test the vif
-vif(x)
 
-"""
-5 timeseries clustring 
-"""
-# clustering
-# x_ts = to_time_series_dataset(x.T)
-# x_ts_scaled = TimeSeriesScalerMeanVariance().fit_transform(x_ts)
-# n_clusters = 5
-# max_iter = 100
-# # clustering algorithms
-# clustering_algorithms = {
-#     "KMeans": TimeSeriesKMeans(n_clusters=n_clusters, metric="euclidean", max_iter=max_iter, n_init=2),
-#     'dtw': TimeSeriesKMeans(n_clusters=n_clusters, metric="dtw", max_iter=max_iter, n_init=2),
-#     'softdtw':TimeSeriesKMeans(n_clusters=n_clusters, metric="softdtw", max_iter=max_iter, n_init=2),
-#     'kshape':KShape(n_clusters=n_clusters, max_iter=max_iter, n_init=2),
-#     'kernelkmeans':KernelKMeans(n_clusters=n_clusters, kernel="gak", max_iter=max_iter, n_init=2),
-# }
-# best_algorithm = None
-# best_score = float("-inf")
-#
-# for algorithm_name, algorithm in clustering_algorithms.items():
-#     # Apply the current clustering algorithm
-#     y_pred = algorithm.fit_predict(x_ts_scaled)
-#     # Evaluate the clustering performance using silhouette score
-#     score = silhouette_score(x_ts_scaled, y_pred)
-#
-#     print(f"{algorithm_name} - Silhouette Score: {score}")
-#
-#     # Check if the current algorithm has a higher silhouette score
-#     if score > best_score:
-#         best_score = score
-#         best_algorithm = algorithm_name
-#
-# # Print the best clustering algorithm
-# print(f"The best clustering algorithm is: {best_algorithm} with Silhouette Score: {best_score}")
-#
-# cluster_range = range(2, 15)
-# # Fit models and calculate silhouette scores for each number of clusters
-# silhouette_scores = []
-# for n_clusters in cluster_range:
-#     model = TimeSeriesKMeans(n_clusters=9, metric="dtw", max_iter=8, n_init=2,random_state=2024)
-#     y_pred = model.fit_predict(x_ts_scaled)
-#     silhouette = silhouette_score(x_ts_scaled, y_pred)
-#     silhouette_scores.append(silhouette)
-# # Plot the elbow curve
-# plt.figure(figsize=(8, 6))
-# plt.plot(cluster_range, silhouette_scores, marker='o', linestyle='-', color='b')
-# plt.title('Elbow Method for Optimal Number of Clusters')
-# plt.xlabel('Number of Clusters')
-# plt.ylabel('Silhouette Score')
-# plt.show()
-#
-# model = TimeSeriesKMeans(n_clusters=9, metric="dtw", max_iter=max_iter, n_init=2,random_state=2024)
-# # training and clustering
-# y_pred = model.fit_predict(x_ts_scaled)
+'''
+hierarchical clustering
+Using TimeSeriesKmeans to calculate silhouette scores for different clusters numbers to 
+determines the best cluster number setting.
+'''
+
+x_ts = to_time_series_dataset(x.T)
+x_ts_scaled = TimeSeriesScalerMeanVariance().fit_transform(x_ts)
+
+cluster_range = range(2, 15)
+# Fit models and calculate silhouette scores for each number of clusters
+silhouette_scores = []
+for n_clusters in cluster_range:
+    model = TimeSeriesKMeans(n_clusters=n_clusters, metric="dtw", max_iter=8, n_init=2,random_state=2025)
+    y_pred = model.fit_predict(x_ts_scaled)
+    silhouette = silhouette_score(x_ts_scaled, y_pred)
+    silhouette_scores.append(silhouette)
+# Plot the elbow curve
+plt.figure(figsize=(8, 6))
+plt.plot(cluster_range, silhouette_scores, marker='o', linestyle='-', color='b')
+plt.title('Elbow Method for Optimal Number of Clusters')
+plt.xlabel('Number of Clusters')
+plt.ylabel('Silhouette Score')
+plt.show()
+# training and clustering
+model = TimeSeriesKMeans(n_clusters=8, metric="dtw", max_iter=8, n_init=2,random_state=2025)
+y_pred = model.fit_predict(x_ts_scaled)
 # Visualizing the clustering results
-# plt.figure(figsize=(12, 16))
-# for yi in range(9):
-#     plt.subplot(n_clusters, 1, 1 + yi)
-#     for xx in x_ts_scaled[y_pred == yi]:
-#         plt.plot(xx.ravel(), "k-", alpha=.2)
-#     plt.plot(model.cluster_centers_[yi].ravel(), "r-")
-#     plt.title("Cluster %d" % (yi + 1))
-# plt.tight_layout()
-# plt.show()
-#
-# clustering = pd.DataFrame({'variable': x.columns,
-#                            'cluster': y_pred})
-
-# def unique_df(df):
-#     variables = []
-#     clusters = df.cluster.unique()
-#     for cluster in clusters:
-#         variable = list(df[df['cluster']==cluster].sample().variable)[0]
-#         variables.append(variable)
-#     return variables
-#
-# #  from each cluster random select 1 variable
-# clusters = unique_df(clustering)
-
-# burota feature selection to determine which information is important
-ranking = []
-for i in range(3):
-    rf = RandomForestRegressor(n_estimators=50, max_depth=5, n_jobs=-1, random_state=i)
-    boru = BorutaPy(rf,verbose=2)
-    sel = boru.fit_transform(x_.values,y_.values)
-    ranking.append(boru.ranking_)
-    print('========round ' +str(i) +"========")
-boruta_feature = pd.DataFrame({
-    'variable': x_.columns,
-    'ranking': ranking[0]
-})
-boruta_feature[boruta_feature['ranking']==1]
-#
-# # pearson correlation
-# for i in x_:
-#     corr_coef, p_value = pearsonr(x_[i].values, y_['TCT'])
-#     print("the correlation between %s and CO2 is %0.5f and the p-vale is %0.5f" % (i, corr_coef, p_value))
-#
-for i in x_:
-    corr_coef, p_value = spearmanr(x_[i].values, y_)
-    print(p_value)
-#
-# # hierarchical clustering
-#
+plt.figure(figsize=(12, 16))
+for yi in range(8):
+    plt.subplot(n_clusters, 1, 1 + yi)
+    for xx in x_ts_scaled[y_pred == yi]:
+        plt.plot(xx.ravel(), "k-", alpha=.2)
+    plt.plot(model.cluster_centers_[yi].ravel(), "r-")
+    plt.title("Cluster %d" % (yi + 1))
+plt.tight_layout()
+plt.show()
+clustering = pd.DataFrame({'variable': x.columns,
+                           'cluster': y_pred})
+#plotting hierarchical feature clustering
 scaler = StandardScaler()
 x_scaled = scaler.fit_transform(x)
 x_scaled = pd.DataFrame(x_scaled,columns = x.columns)
@@ -179,43 +106,38 @@ plt.title("Hierarchical feature clustering")
 plt.xlabel("features")
 plt.ylabel("Ward's distance")
 plt.show()
-#
-# clusters
 
-cluster_range = range(2, 15)
-silhouette_scores = []
-for n_clusters in cluster_range:
-    labels = fcluster(linked, t=n_clusters, criterion='maxclust')
-    silhouette = silhouette_score(x_scaled, labels)
-    silhouette_scores.append(silhouette)
-# Plot the elbow curve
-plt.figure(figsize=(8, 6))
-plt.plot(cluster_range, silhouette_scores, marker='o', linestyle='-', color='b')
-plt.title('Elbow Method for Optimal Number of Clusters')
-plt.xlabel('Number of Clusters')
-plt.ylabel('Silhouette Score')
-plt.show()
-#
-# labels = fcluster(linked, t =8, criterion='maxclust')
-#
-# # Visualizing the clustering results
-# plt.figure(figsize=(12, 16))
-# for yi in range(1,9):
-#     plt.subplot(8, 1,  yi)
-#     for xx in x_ts_scaled[labels == yi]:
-#         plt.plot(xx.ravel(), "k-", alpha=.2)
-#     plt.title("Cluster %d" % (yi))
-# plt.tight_layout()
-# plt.show()
-#
-# pd.plotting.autocorrelation_plot(y_)
-# plt.show()
-# plot_acf(y_,)
-# plt.show()
-# variable_cluster = pd.DataFrame({'variable': x_.columns,
-#                     'cluster': labels})
-#++++++++++++++++++++++++++++++++++++++++++++++++++++#
+'''
+ burota feature selection to determine which information is important
+'''
+ranking = []
+for i in range(3):
+    rf = RandomForestRegressor(n_estimators=50, max_depth=5, n_jobs=-1, random_state=i)
+    boru = BorutaPy(rf,verbose=2)
+    sel = boru.fit_transform(x_.values,y_.values)
+    ranking.append(boru.ranking_)
+    print('========round ' +str(i) +"========")
+boruta_feature = pd.DataFrame({
+    'variable': x_.columns,
+    'ranking': ranking[0]})
+boruta_feature =boruta_feature[boruta_feature['ranking']==1]
 
+# correlation
+for i in x_:
+    corr_coef, p_value = pearsonr(x_[i].values, y_['TCT'])
+    print("the correlation between %s and CO2 is %0.5f and the p-vale is %0.5f" % (i, corr_coef, p_value))
+
+for i in x_:
+    corr_coef, p_value = spearmanr(x_[i].values, y_)
+    print(p_value)
+
+'''
+Feature selection based on boruta, correlation analysis, clustering was conducted outside the python script.
+Machine learning based on the selected feature
+
+'''
+
+# data preprocess
 x_selected = df[['TPEI','FFT',"AVMT","APDI",'UR','TCT']]
 columns_name = x_selected.columns
 scaler = StandardScaler()
@@ -245,6 +167,12 @@ x_train_1, x_test_1, y_train, y_test = train_test_split(x_selected_, y_, test_si
 # original dataset
 x_train_2, x_test_2, y_train, y_test = train_test_split(x__, y_, test_size=0.2 ,random_state=10, shuffle=False)
 # GV grid_search
+# recursive feature elimination
+rfe = RFECV(RandomForestRegressor(),cv=10,scoring="neg_mean_squared_error")
+rfe.fit(x_train_2,y_train)
+rfe_feature = np.array(x_train_2.columns)[rfe.get_support()]
+x_train_rf = x_train_2[rfe_feature]
+x_test_rf = x_test_2[rfe_feature]
 
 model_Xgboost = XGBRegressor()
 param_grid_Xgboost = {
@@ -293,66 +221,59 @@ best_model_Svr2,best_params_Svr2,results_Svr2= GSCV(model_Svr, param_grid_Svr,x_
 best_model_ElasticNet2,best_params_ElasticNet2,results_ElasticNet2= GSCV(model_ElasticNet, param_grid_ElasticNet,x_train_2)
 best_model_Ann2,best_params_Ann2,results_Ann2= GSCV(model_Ann, param_grid_Ann,x_train_2)
 
-def training(best_model,x_train):
-    y_pred = best_model.predict(x_train)
-    rmse = np.sqrt(mean_squared_error(y_train, y_pred))
-    mae = mean_absolute_error(y_train, y_pred)
-    mape = mean_absolute_percentage_error(y_train, y_pred)
-    return rmse, mae, mape,y_pred
-def testing(best_model,x_test):
-    y_pred = best_model.predict(x_test)
-    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-    mae = mean_absolute_error(y_test, y_pred)
-    mape = mean_absolute_percentage_error(y_test, y_pred)
-    return rmse,mae,mape,y_pred
-
-
-testing(best_model_Xgboost,x_test_1)
-testing(best_model_Ann,x_test_1)
-testing(best_model_Svr,x_test_1)
-testing(best_model_ElasticNet,x_test_1)
-
-testing(best_model_Xgboost2,x_test_2)
-testing(best_model_Ann2,x_test_2)
-testing(best_model_Svr2,x_test_2)
-testing(best_model_ElasticNet2,x_test_2)
-
-training(best_model_Xgboost,x_train_1)
-training(best_model_Ann,x_train_1)
-training(best_model_Svr,x_train_1)
-training(best_model_ElasticNet,x_train_1)
-
-training(best_model_Xgboost2,x_train_2)
-training(best_model_Ann2,x_train_2)
-training(best_model_Svr2,x_train_2)
-training(best_model_ElasticNet2,x_train_2)
-
-# try other feature selection
-rfe = RFECV(RandomForestRegressor(),cv=10,scoring="neg_mean_squared_error")
-rfe.fit(x_train_2,y_train)
-rfe_feature = np.array(x_train_2.columns)[rfe.get_support()]
-x_train_rf = x_train_2[rfe_feature]
-x_test_rf = x_test_2[rfe_feature]
-
-rf = RandomForestRegressor()
-rf.fit(x_train_2,y_train)
-rf.feature_importances_
+# recursive data performance
 
 best_model_Xgboost3,best_params_Xgboost3,results_Xgboost3= GSCV(model_Xgboost, param_grid_Xgboost,x_train_rf)
 best_model_Svr3,best_params_Svr3,results_Svr3= GSCV(model_Svr, param_grid_Svr,x_train_rf)
 best_model_ElasticNet3,best_params_ElasticNet3,results_ElasticNet3= GSCV(model_ElasticNet, param_grid_ElasticNet,x_train_rf)
 best_model_Ann3,best_params_Ann3,results_Ann3= GSCV(model_Ann, param_grid_Ann,x_train_rf)
 
-testing(best_model_Xgboost3,x_test_rf)
-testing(best_model_Ann3,x_test_rf)
-testing(best_model_Svr3,x_test_rf)
-testing(best_model_ElasticNet3,x_test_rf)
+def training(best_model,x_train):
+    y_pred = best_model.predict(x_train)
+    rmse = np.sqrt(mean_squared_error(y_train, y_pred))
+    mae = mean_absolute_error(y_train, y_pred)
+    mape = mean_absolute_percentage_error(y_train, y_pred)
+    error = y_pred - y_train
+    std = np.std(error)
+    return std,rmse, mae, mape,y_pred
+def testing(best_model,x_test):
+    y_pred = best_model.predict(x_test)
+    error = y_pred - y_test
+    std = np.std(error)
+    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+    mae = mean_absolute_error(y_test, y_pred)
+    mape = mean_absolute_percentage_error(y_test, y_pred)
+    return std,rmse,mae,mape,y_pred
 
+
+
+
+training(best_model_Xgboost,x_train_1)
+training(best_model_Ann,x_train_1)
+training(best_model_Svr,x_train_1)
+training(best_model_ElasticNet,x_train_1)
+training(best_model_Xgboost2,x_train_2)
+training(best_model_Ann2,x_train_2)
+training(best_model_Svr2,x_train_2)
+training(best_model_ElasticNet2,x_train_2)
 training(best_model_Xgboost3,x_train_rf)
 training(best_model_Ann3,x_train_rf)
 training(best_model_Svr3,x_train_rf)
 training(best_model_ElasticNet3,x_train_rf)
 
+
+testing(best_model_Xgboost,x_test_1)
+testing(best_model_Ann,x_test_1)
+testing(best_model_Svr,x_test_1)
+testing(best_model_ElasticNet,x_test_1)
+testing(best_model_Xgboost2,x_test_2)
+testing(best_model_Ann2,x_test_2)
+testing(best_model_Svr2,x_test_2)
+testing(best_model_ElasticNet2,x_test_2)
+testing(best_model_Xgboost3,x_test_rf)
+testing(best_model_Ann3,x_test_rf)
+testing(best_model_Svr3,x_test_rf)
+testing(best_model_ElasticNet3,x_test_rf)
 
 # shap analysis
 
